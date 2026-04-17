@@ -134,18 +134,31 @@ int tree_serialize(const Tree *tree, void **data_out, size_t *len_out) {
 int tree_from_index(ObjectID *id_out) {
     Index index;
 
-    // Load index from .pes/index
-    if (index_load(&index) != 0) {
-        return -1;
-    }
+    if (index_load(&index) != 0) return -1;
 
-    // Debug: iterate entries
+    Tree tree;
+    tree.count = 0;
+
     for (size_t i = 0; i < index.count; i++) {
-        // Just accessing entries (no logic yet)
         IndexEntry *e = &index.entries[i];
-        (void)e;
+
+        // Skip paths with '/'
+        if (strchr(e->path, '/')) continue;
+
+        TreeEntry *t = &tree.entries[tree.count++];
+
+        t->mode = e->mode;
+        strcpy(t->name, e->path);
+        t->hash = e->hash;
     }
 
-    (void)id_out;
+    void *data;
+    size_t len;
+
+    if (tree_serialize(&tree, &data, &len) != 0) return -1;
+
+    if (object_write(OBJ_TREE, data, len, id_out) != 0) return -1;
+
+    free(data);
     return 0;
 }
