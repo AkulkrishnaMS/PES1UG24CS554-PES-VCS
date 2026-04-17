@@ -94,9 +94,80 @@ int object_exists(const ObjectID *id) {
 //
 // Returns 0 on success, -1 on error.
 int object_write(ObjectType type, const void *data, size_t len, ObjectID *id_out) {
-    // TODO: Implement
-    (void)type; (void)data; (void)len; (void)id_out;
-    return -1;
+    char header[64];
+    const char *type_str;
+
+    // Step 1: Convert type to string
+    if (type == OBJ_BLOB) type_str = "blob";
+    else if (type == OBJ_TREE) type_str = "tree";
+    else if (type == OBJ_COMMIT) type_str = "commit";
+    else return -1;
+
+    // Step 2: Build header
+    int header_len = snprintf(header, sizeof(header), "%s %zu", type_str, len) + 1;
+
+    // Step 3: Allocate full object (header + data)
+    size_t total_len = header_len + len;
+    char *full_obj = malloc(total_len);
+    if (!full_obj) return -1;
+
+    memcpy(full_obj, header, header_len);
+    memcpy(full_obj + header_len, data, len);
+
+    // Step 4: Compute hash
+    compute_hash(full_obj, total_len, id_out);
+
+    // Step 5: Check if already exists
+    if (object_exists(id_out)) {
+        free(full_obj);
+        return 0;
+    }
+
+    // Step 6: Get path
+    char path[512];
+    object_path(id_out, path, sizeof(path));
+
+    // Extract directory path
+    char dir[512];
+    strncpy(dir, path, sizeof(dir));
+    char *slash = strrchr(dir, '/');
+    if (!slash) return -1;
+    *slash = '\0';
+
+    mkdir(OBJECTS_DIR, 0755);  // ensure base dir
+    mkdir(dir, 0755);          // shard dir
+
+    // Step 7: Temp file
+    char temp_path[512];
+    snprintf(temp_path, sizeof(temp_path), "%s/tmpXXXXXX", dir);
+temp_path[sizeof(temp_path) - 1] = '\0';
+
+    int fd = mkstemp(temp_path);
+    if (fd < 0) {
+        free(full_obj);
+        return -1;
+    }
+
+    // Step 8: Write data
+    if (write(fd, full_obj, total_len) != (ssize_t)total_len) {
+        close(fd);
+        unlink(temp_path);
+        free(full_obj);
+        return -1;
+    }
+
+    fsync(fd);
+    close(fd);
+
+    // Step 9: Rename (atomic)
+    if (rename(temp_path, path) < 0) {
+        unlink(temp_path);
+        free(full_obj);
+        return -1;
+    }
+
+    free(full_obj);
+    return 0;
 }
 
 // Read an object from the store.
@@ -122,7 +193,6 @@ int object_write(ObjectType type, const void *data, size_t len, ObjectID *id_out
 // The caller is responsible for calling free(*data_out).
 // Returns 0 on success, -1 on error (file not found, corrupt, etc.).
 int object_read(const ObjectID *id, ObjectType *type_out, void **data_out, size_t *len_out) {
-    // TODO: Implement
-    (void)id; (void)type_out; (void)data_out; (void)len_out;
+   
     return -1;
 }
