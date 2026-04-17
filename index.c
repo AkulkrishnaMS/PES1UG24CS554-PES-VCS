@@ -245,7 +245,11 @@ int index_add(Index *index, const char *path) {
     struct stat st;
     stat(path, &st);
 
-    IndexEntry *e = &index->entries[index->count++];
+    IndexEntry *e = index_find(index, path);
+
+if (!e) {
+    e = &index->entries[index->count++];
+}
 
     e->mode = st.st_mode;
     e->hash = id;
