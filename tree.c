@@ -140,17 +140,28 @@ int tree_from_index(ObjectID *id_out) {
     tree.count = 0;
 
     for (size_t i = 0; i < index.count; i++) {
-        IndexEntry *e = &index.entries[i];
+    IndexEntry *e = &index.entries[i];
 
-        // Skip paths with '/'
-        if (strchr(e->path, '/')) continue;
+    char *slash = strchr(e->path, '/');
 
+    if (!slash) {
         TreeEntry *t = &tree.entries[tree.count++];
-
         t->mode = e->mode;
         strcpy(t->name, e->path);
         t->hash = e->hash;
+    } else {
+        // Directory handling (basic placeholder)
+        char dirname[256];
+        strncpy(dirname, e->path, slash - e->path);
+        dirname[slash - e->path] = '\0';
+
+        // Add directory entry (dummy for now)
+        TreeEntry *t = &tree.entries[tree.count++];
+        t->mode = MODE_DIR;
+        strcpy(t->name, dirname);
+        memset(t->hash.hash, 0, HASH_SIZE); // placeholder
     }
+}
 
     void *data;
     size_t len;
