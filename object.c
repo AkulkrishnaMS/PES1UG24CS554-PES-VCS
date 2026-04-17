@@ -1,4 +1,5 @@
-
+// object.c — Content-addressable object store implementation
+// Akulkrishna M S | PES1UG24CS554
 
 #include "pes.h"
 #include <stdio.h>
@@ -9,8 +10,9 @@
 #include <unistd.h>
 #include <openssl/evp.h>
 
-// ─── PROVIDED ────────────────────────────────────────────────────────────────
+// ─── PROVIDED FUNCTIONS ────────────────────────────────────────────────
 
+// Convert binary hash → hex string
 void hash_to_hex(const ObjectID *id, char *hex_out) {
     for (int i = 0; i < HASH_SIZE; i++) {
         sprintf(hex_out + i * 2, "%02x", id->hash[i]);
@@ -18,6 +20,7 @@ void hash_to_hex(const ObjectID *id, char *hex_out) {
     hex_out[HASH_HEX_SIZE] = '\0';
 }
 
+// Convert hex string → binary hash
 int hex_to_hash(const char *hex, ObjectID *id_out) {
     if (strlen(hex) < HASH_HEX_SIZE) return -1;
     for (int i = 0; i < HASH_SIZE; i++) {
@@ -28,74 +31,84 @@ int hex_to_hash(const char *hex, ObjectID *id_out) {
     return 0;
 }
 
+// Compute SHA-256 hash of given data
 void compute_hash(const void *data, size_t len, ObjectID *id_out) {
     unsigned int hash_len;
     EVP_MD_CTX *ctx = EVP_MD_CTX_new();
+
     EVP_DigestInit_ex(ctx, EVP_sha256(), NULL);
     EVP_DigestUpdate(ctx, data, len);
     EVP_DigestFinal_ex(ctx, id_out->hash, &hash_len);
+
     EVP_MD_CTX_free(ctx);
 }
 
-
+// Generate object storage path based on hash
+// Format: .pes/objects/XX/YYYY...
 void object_path(const ObjectID *id, char *path_out, size_t path_size) {
     char hex[HASH_HEX_SIZE + 1];
     hash_to_hex(id, hex);
     snprintf(path_out, path_size, "%s/%.2s/%s", OBJECTS_DIR, hex, hex + 2);
 }
 
+// Check if object already exists (for deduplication)
 int object_exists(const ObjectID *id) {
     char path[512];
     object_path(id, path, sizeof(path));
     return access(path, F_OK) == 0;
 }
 
+// ─── IMPLEMENTED FUNCTIONS ─────────────────────────────────────────────
 
+// Write object to .pes/objects/
 int object_write(ObjectType type, const void *data, size_t len, ObjectID *id_out) {
+
     char header[64];
     const char *type_str;
 
-    // Step 1: Convert type to string
+    // Convert enum type → string
     if (type == OBJ_BLOB) type_str = "blob";
     else if (type == OBJ_TREE) type_str = "tree";
     else if (type == OBJ_COMMIT) type_str = "commit";
     else return -1;
 
-    // Step 2: Build header
+    // Build header: "type size\0"
     int header_len = snprintf(header, sizeof(header), "%s %zu", type_str, len) + 1;
 
-    // Step 3: Allocate full object (header + data)
+    // Allocate buffer for full object (header + data)
     size_t total_len = header_len + len;
     char *full_obj = malloc(total_len);
     if (!full_obj) return -1;
 
+    // Copy header and actual data into buffer
     memcpy(full_obj, header, header_len);
     memcpy(full_obj + header_len, data, len);
 
-    // Step 4: Compute hash
+    // Compute SHA-256 hash of full object
     compute_hash(full_obj, total_len, id_out);
 
-    // Step 5: Check if already exists
+    // If object already exists → skip writing (deduplication)
     if (object_exists(id_out)) {
         free(full_obj);
         return 0;
     }
 
-    // Step 6: Get path
+    // Get storage path based on hash
     char path[512];
     object_path(id_out, path, sizeof(path));
 
-    // Extract directory path
+    // Extract directory path for shard (XX/)
     char dir[512];
     strncpy(dir, path, sizeof(dir));
     char *slash = strrchr(dir, '/');
     if (!slash) return -1;
     *slash = '\0';
 
-    mkdir(OBJECTS_DIR, 0755);  // ensure base dir
-    mkdir(dir, 0755);          // shard dir
+    // Ensure directories exist
+    mkdir(OBJECTS_DIR, 0755);
+    mkdir(dir, 0755);
 
-    // Step 7: Temp file
+    // Create temporary file (atomic write safety)
     char temp_path[512];
     snprintf(temp_path, sizeof(temp_path), "%s/tmpXXXXXX", dir);
 
@@ -105,7 +118,7 @@ int object_write(ObjectType type, const void *data, size_t len, ObjectID *id_out
         return -1;
     }
 
-    // Step 8: Write data
+    // Write object data to temp file
     if (write(fd, full_obj, total_len) != (ssize_t)total_len) {
         close(fd);
         unlink(temp_path);
@@ -113,10 +126,11 @@ int object_write(ObjectType type, const void *data, size_t len, ObjectID *id_out
         return -1;
     }
 
+    // Ensure data is flushed to disk
     fsync(fd);
     close(fd);
 
-    // Step 9: Rename (atomic)
+    // Atomically rename temp file → final object file
     if (rename(temp_path, path) < 0) {
         unlink(temp_path);
         free(full_obj);
@@ -127,11 +141,13 @@ int object_write(ObjectType type, const void *data, size_t len, ObjectID *id_out
     return 0;
 }
 
-
+// Read object from storage
 int object_read(const ObjectID *id, ObjectType *type_out, void **data_out, size_t *len_out) {
+
     char path[512];
     object_path(id, path, sizeof(path));
 
+    // Open object file
     FILE *fp = fopen(path, "rb");
     if (!fp) return -1;
 
@@ -140,6 +156,7 @@ int object_read(const ObjectID *id, ObjectType *type_out, void **data_out, size_
     long file_size = ftell(fp);
     rewind(fp);
 
+    // Read entire file into buffer
     char *buffer = malloc(file_size);
     if (!buffer) {
         fclose(fp);
@@ -153,7 +170,7 @@ int object_read(const ObjectID *id, ObjectType *type_out, void **data_out, size_
     }
     fclose(fp);
 
-    // Step 1: Verify hash
+    // Verify integrity using hash
     ObjectID check_id;
     compute_hash(buffer, file_size, &check_id);
 
@@ -162,7 +179,7 @@ int object_read(const ObjectID *id, ObjectType *type_out, void **data_out, size_
         return -1;
     }
 
-    // Step 2: Find header/data split
+    // Find separator between header and data
     char *null_pos = memchr(buffer, '\0', file_size);
     if (!null_pos) {
         free(buffer);
@@ -170,12 +187,13 @@ int object_read(const ObjectID *id, ObjectType *type_out, void **data_out, size_
     }
 
     size_t header_len = null_pos - buffer + 1;
+
+    // Parse header (type + size)
     char type_str[10];
     size_t size;
-
     sscanf(buffer, "%s %zu", type_str, &size);
 
-    // Step 3: Set type
+    // Convert string → enum
     if (strcmp(type_str, "blob") == 0) *type_out = OBJ_BLOB;
     else if (strcmp(type_str, "tree") == 0) *type_out = OBJ_TREE;
     else if (strcmp(type_str, "commit") == 0) *type_out = OBJ_COMMIT;
@@ -184,7 +202,7 @@ int object_read(const ObjectID *id, ObjectType *type_out, void **data_out, size_
         return -1;
     }
 
-    // Step 4: Extract data
+    // Allocate and copy actual data portion
     *data_out = malloc(size);
     if (!*data_out) {
         free(buffer);
