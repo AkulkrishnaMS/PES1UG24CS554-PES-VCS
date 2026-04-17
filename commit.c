@@ -194,9 +194,18 @@ int head_update(const ObjectID *new_commit) {
 //
 // Returns 0 on success, -1 on error.
 int commit_create(const char *message, ObjectID *commit_id_out) {
+
+    // ✅ COMMIT 2 GOES HERE (FIRST THING)
+    ObjectID tree_id;
+
+    if (tree_from_index(&tree_id) != 0) {
+        return -1;
+    }
+
+    // (rest will be added in later commits)
+
     (void)message;
     (void)commit_id_out;
 
-    // Start commit creation
     return 0;
 }
