@@ -182,10 +182,21 @@ int write_tree_level(IndexEntry *entries, int count, int depth, ObjectID *id_out
 // objects to the object store.
 int tree_from_index(ObjectID *id_out) {
     Index index;
+    // Load the actual staging area
     if (index_load(&index) != 0) return -1;
 
-    if (index.count == 0) return 0; // Nothing to commit
+    // If nothing is staged, write an empty tree
+    if (index.count == 0) {
+        Tree tree;
+        tree.count = 0;
+        void *data;
+        size_t len;
+        tree_serialize(&tree, &data, &len);
+        object_write(OBJ_TREE, data, len, id_out);
+        free(data);
+        return 0;
+    }
 
-    // Start at depth 0 with all entries
+    // Call your recursive helper to build the real tree
     return write_tree_level(index.entries, index.count, 0, id_out);
 }
