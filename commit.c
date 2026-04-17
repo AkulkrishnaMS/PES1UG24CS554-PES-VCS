@@ -197,13 +197,11 @@ int commit_create(const char *message, ObjectID *commit_id_out) {
 
     // 🟢 COMMIT 2 — build tree
     ObjectID tree_id;
-
     if (tree_from_index(&tree_id) != 0) {
         return -1;
     }
 
-    // 🔵 COMMIT 3 — ADD HERE (parent + struct)
-
+    // 🔵 COMMIT 3 — commit struct + parent
     Commit commit;
     memset(&commit, 0, sizeof(commit));
 
@@ -217,10 +215,14 @@ int commit_create(const char *message, ObjectID *commit_id_out) {
         commit.has_parent = 0;
     }
 
-    // (next commits will go below)
+    // 🟡 COMMIT 4 — ADD HERE (metadata)
 
-    (void)message;
-    (void)commit_id_out;
+    snprintf(commit.author, sizeof(commit.author), "%s", pes_author());
+    commit.timestamp = (uint64_t)time(NULL);
+
+    snprintf(commit.message, sizeof(commit.message), "%s", message);
+
+    // 🟣 COMMIT 5 will come here (serialize + write + HEAD)
 
     return 0;
 }
