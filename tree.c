@@ -150,17 +150,19 @@ int tree_from_index(ObjectID *id_out) {
         strcpy(t->name, e->path);
         t->hash = e->hash;
     } else {
-        // Directory handling (basic placeholder)
-        char dirname[256];
-        strncpy(dirname, e->path, slash - e->path);
-        dirname[slash - e->path] = '\0';
+    char dirname[256];
+    strncpy(dirname, e->path, slash - e->path);
+    dirname[slash - e->path] = '\0';
 
-        // Add directory entry (dummy for now)
-        TreeEntry *t = &tree.entries[tree.count++];
-        t->mode = MODE_DIR;
-        strcpy(t->name, dirname);
-        memset(t->hash.hash, 0, HASH_SIZE); // placeholder
-    }
+    // Create subtree (recursive)
+    ObjectID sub_id;
+    tree_from_index(&sub_id);
+
+    TreeEntry *t = &tree.entries[tree.count++];
+    t->mode = MODE_DIR;
+    strcpy(t->name, dirname);
+    t->hash = sub_id;
+}
 }
 
     void *data;
