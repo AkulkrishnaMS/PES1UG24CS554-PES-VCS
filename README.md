@@ -61,13 +61,13 @@ Key design decisions:
 
 ### Screenshot 1A — Phase 1 Tests Passing
 
-![Phase 1 test output](1A.png)
+![Phase 1 Test](screenshots/1A.png)
 
 `make test_objects` compiles and runs the test binary. All three tests (blob storage, deduplication, integrity check) pass.
 
 ### Screenshot 1B — Sharded Object Store
 
-![find .pes/objects output](1B.png)
+![Object Store Structure](screenshots/1B.png)
 
 Three objects are visible after the test run, stored under their respective two-character shard directories (e.g., `.pes/objects/d5/...`, `.pes/objects/25/...`, `.pes/objects/2a/...`).
 
@@ -87,13 +87,13 @@ Three objects are visible after the test run, stored under their respective two-
 
 ### Screenshot 2A — Phase 2 Tests Passing
 
-![Phase 2 test output](2A.png)
+![Phase 2 Test](screenshots/2A.png)
 
 Both tests pass: `tree serialize/parse roundtrip` and `tree deterministic serialization`. The serialized tree is 139 bytes.
 
 ### Screenshot 2B — Raw Tree Object (xxd)
 
-![xxd of raw tree object](2B.png)
+![Tree Hex Dump](screenshots/2B.png)
 
 The hex dump shows the binary tree object stored on disk. The octal mode (`100644`) and filenames (`file1.txt`, `file2.txt`) are visible in the ASCII column, followed by the raw 32-byte hashes.
 
@@ -113,13 +113,13 @@ The hex dump shows the binary tree object stored on disk. The octal mode (`10064
 
 ### Screenshot 3A — `pes status` Output
 
-![pes status output](3A.png)
+![Status Output](screenshots/3A.png)
 
 After `./pes init` and `./pes add file1.txt file2.txt`, status correctly shows both files as staged, nothing unstaged, and all other project files as untracked.
 
 ### Screenshot 3B — `.pes/index` Content
 
-![cat .pes/index](3B.png)
+![Index Content](screenshots/3B.png)
 
 The index file shows two entries in plain-text format: mode, SHA-256 hex hash, mtime, size, and path — one per line, sorted alphabetically.
 
@@ -140,27 +140,26 @@ The index file shows two entries in plain-text format: mode, SHA-256 hex hash, m
 5. **Update HEAD:** Calls `head_update` to atomically move the branch ref to the new commit hash.
 
 ### Screenshot 4A — `pes log` with Three Commits
-
-![pes log output](4A.png)
+![Commit Log](screenshots/4A.png)
 
 Three commits are shown in reverse chronological order, each with full hash, author, Unix timestamp, and message. The parent chain is correctly maintained.
 
 ### Screenshot 4B — Object Store After Three Commits
 
-![find .pes -type f sorted](4B.png)
+![Storage Growth](screenshots/4B.png)
 
 After three commits, the object store contains 10 objects (blobs, trees, and commits) plus the index and HEAD ref. Object counts grow as expected: each commit adds a commit object, a tree object, and blob objects only for changed files.
 
 ### Screenshot 4C — Reference Chain
 
-![cat .pes/refs/heads/main and HEAD](4C.png)
+![Ref Chain](screenshots/4C.png)
 
 `cat .pes/refs/heads/main` shows the hash of the latest commit. `cat .pes/HEAD` shows `ref: refs/heads/main`, confirming the symbolic reference chain is intact.
 
 ### Screenshot — Integration Test
 
-![make test-integration full output](final1.png)
-![make test-integration continued](final2.png)
+![make test-integration full output](screenshots/final1.png)
+![make test-integration continued](screenshots/final2.png)
 
 `make test-integration` runs `test_sequence.sh` end-to-end. All phases pass: repository initialization, staging, first commit, second commit, third commit, full history traversal, reference chain verification, and object store count.
 
