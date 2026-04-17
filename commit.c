@@ -195,14 +195,29 @@ int head_update(const ObjectID *new_commit) {
 // Returns 0 on success, -1 on error.
 int commit_create(const char *message, ObjectID *commit_id_out) {
 
-    // ✅ COMMIT 2 GOES HERE (FIRST THING)
+    // 🟢 COMMIT 2 — build tree
     ObjectID tree_id;
 
     if (tree_from_index(&tree_id) != 0) {
         return -1;
     }
 
-    // (rest will be added in later commits)
+    // 🔵 COMMIT 3 — ADD HERE (parent + struct)
+
+    Commit commit;
+    memset(&commit, 0, sizeof(commit));
+
+    commit.tree = tree_id;
+
+    ObjectID parent_id;
+    if (head_read(&parent_id) == 0) {
+        commit.parent = parent_id;
+        commit.has_parent = 1;
+    } else {
+        commit.has_parent = 0;
+    }
+
+    // (next commits will go below)
 
     (void)message;
     (void)commit_id_out;
